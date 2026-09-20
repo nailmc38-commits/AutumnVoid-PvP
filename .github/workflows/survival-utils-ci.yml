@@ -1,0 +1,30 @@
+name: Survival Utils Build
+
+on:
+  push:
+    branches: [survival-utils-ci-v1]
+    paths:
+      - "survival-utils/**"
+      - ".github/workflows/survival-utils-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: microsoft
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.5.1"
+      - name: Build
+        working-directory: survival-utils
+        run: gradle build --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: survival-utils-1.21.11
+          path: survival-utils/build/libs/*.jar
+          if-no-files-found: error
