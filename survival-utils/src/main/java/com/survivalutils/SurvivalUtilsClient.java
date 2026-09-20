@@ -84,6 +84,9 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
             if (worldReadyTicks < 40) return;
 
             tickCounter++;
+            if (CONFIG.isEnabled(Feature.AI_ASSISTANT) && tickCounter % 200 == 0 && !"THINKING".equals(BionicAssistant.status)) {
+                BionicAssistant.probe();
+            }
             var player = client.player;
 
         if (!hadPlayer) {
