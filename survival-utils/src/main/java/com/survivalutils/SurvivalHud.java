@@ -45,20 +45,23 @@ public final class SurvivalHud {
             List<Line> lines = collect(client);
             if (lines == null) return;
 
-            int max = 14;
+            int max = SurvivalUtilsClient.CONFIG.maxHudLines();
             int shown = Math.min(max, lines.size());
+            boolean right = "RIGHT".equals(SurvivalUtilsClient.CONFIG.hudSide());
 
-            int x = 6;
             int y = 6;
             for (int i = 0; i < shown; i++) {
                 Line line = lines.get(i);
                 if (line == null || line.text == null) continue;
+                int x = right ? graphics.guiWidth() - 6 - client.font.width(line.text) : 6;
                 graphics.drawString(client.font, line.text, x, y, line.color, true);
                 y += client.font.lineHeight;
             }
 
             if (lines.size() > max) {
-                graphics.drawString(client.font, "+" + (lines.size() - max) + " more enabled", x, y, GRAY, true);
+                String more = "+" + (lines.size() - max) + " more";
+                int x = right ? graphics.guiWidth() - 6 - client.font.width(more) : 6;
+                graphics.drawString(client.font, more, x, y, GRAY, true);
             }
 
             renderVisor(graphics, client);
@@ -75,91 +78,91 @@ public final class SurvivalHud {
         var level = client.level;
         BlockPos pos = player.blockPosition();
 
-        if (cfg.isEnabled(Feature.DAY_NIGHT_HUD)) {
+        if (cfg.showHud(Feature.DAY_NIGHT_HUD)) {
             long dayTime = Math.floorMod(level.getDayTime(), 24000L);
             boolean day = dayTime < 13000L;
             long remaining = day ? 13000L - dayTime : 24000L - dayTime;
             out.add(info((day ? "☀ Day" : "☾ Night") + " • " + formatTicks(remaining) + " remaining"));
         }
 
-        if (cfg.isEnabled(Feature.COORDS_HUD)) {
+        if (cfg.showHud(Feature.COORDS_HUD)) {
             out.add(info(String.format(Locale.ROOT, "XYZ %.0f / %.0f / %.0f", player.getX(), player.getY(), player.getZ())));
         }
 
-        if (cfg.isEnabled(Feature.BIOME_HUD)) {
+        if (cfg.showHud(Feature.BIOME_HUD)) {
             String biome = level.getBiome(pos).unwrapKey()
                 .map(k -> pretty(k.identifier().getPath()))
                 .orElse("Unknown");
             out.add(info("Biome • " + biome));
         }
 
-        if (cfg.isEnabled(Feature.ARMOR_HUD)) {
+        if (cfg.showHud(Feature.ARMOR_HUD)) {
             int lowest = lowestArmorPercent(player);
             out.add(new Line("Armor • " + (lowest < 0 ? "none" : lowest + "% lowest"), lowest >= 0 && lowest <= 15 ? RED : WHITE));
         }
 
-        if (cfg.isEnabled(Feature.EFFECT_TIMERS)) {
+        if (cfg.showHud(Feature.EFFECT_TIMERS)) {
             int count = player.getActiveEffects().size();
             if (count > 0) out.add(info("Effects • " + count + " active"));
         }
 
-        if (cfg.isEnabled(Feature.FOOD_HUD)) {
+        if (cfg.showHud(Feature.FOOD_HUD)) {
             out.add(info(String.format(Locale.ROOT, "Food • %d/20 • Sat %.1f",
                 player.getFoodData().getFoodLevel(), player.getFoodData().getSaturationLevel())));
         }
 
-        if (cfg.isEnabled(Feature.XP_HUD)) {
+        if (cfg.showHud(Feature.XP_HUD)) {
             out.add(info(String.format(Locale.ROOT, "XP • Level %d • %.0f%%",
                 player.experienceLevel, player.experienceProgress * 100.0F)));
         }
 
-        if (cfg.isEnabled(Feature.FPS_HUD)) {
+        if (cfg.showHud(Feature.FPS_HUD)) {
             out.add(info("FPS • " + client.getFps()));
         }
 
-        if (cfg.isEnabled(Feature.PING_HUD) && client.getConnection() != null) {
+        if (cfg.showHud(Feature.PING_HUD) && client.getConnection() != null) {
             var entry = client.getConnection().getPlayerInfo(player.getUUID());
             if (entry != null) out.add(info("Ping • " + entry.getLatency() + " ms"));
         }
 
-        if (cfg.isEnabled(Feature.SPEED_HUD)) {
+        if (cfg.showHud(Feature.SPEED_HUD)) {
             var velocity = player.getDeltaMovement();
             double bps = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z) * 20.0;
             out.add(info(String.format(Locale.ROOT, "Speed • %.2f b/s", bps)));
         }
 
-        if (cfg.isEnabled(Feature.DIRECTION_HUD)) {
+        if (cfg.showHud(Feature.DIRECTION_HUD)) {
             out.add(info("Facing • " + pretty(player.getDirection().getName())));
         }
 
-        if (cfg.isEnabled(Feature.WEATHER_HUD)) {
+        if (cfg.showHud(Feature.WEATHER_HUD)) {
             out.add(info("Weather • " + (level.isThundering() ? "Thunder" : level.isRaining() ? "Rain" : "Clear")));
         }
 
-        if (cfg.isEnabled(Feature.MOON_PHASE_HUD)) {
+        if (cfg.showHud(Feature.MOON_PHASE_HUD)) {
             out.add(info("Moon phase • " + Math.floorMod(level.getDayTime() / 24000L, 8L)));
         }
 
-        if (cfg.isEnabled(Feature.CHUNK_HUD)) {
+        if (cfg.showHud(Feature.CHUNK_HUD)) {
             var chunk = player.chunkPosition();
             out.add(info("Chunk • " + chunk.x + ", " + chunk.z));
         }
 
-        if (cfg.isEnabled(Feature.TARGET_BLOCK_HUD) && client.hitResult instanceof BlockHitResult hit) {
+        if (cfg.showHud(Feature.TARGET_BLOCK_HUD) && client.hitResult instanceof BlockHitResult hit) {
             BlockState state = level.getBlockState(hit.getBlockPos());
             out.add(info("Target • " + state.getBlock().getName().getString()));
         }
 
-        if (cfg.isEnabled(Feature.HELD_ITEM_COUNT)) {
+        if (cfg.showHud(Feature.HELD_ITEM_COUNT)) {
             ItemStack held = player.getMainHandItem();
             if (!held.isEmpty()) out.add(info("Held total • " + countItem(player, held.getItem())));
         }
 
-        if (cfg.isEnabled(Feature.DIMENSION_HUD)) {
+        if (cfg.showHud(Feature.DIMENSION_HUD)) {
             out.add(info("Dimension • " + pretty(level.dimension().identifier().getPath())));
         }
 
-        if (cfg.isEnabled(Feature.SESSION_TIMER)) {
+        if (cfg.showHud(Feature.SESSION_TIMER)) {
             long seconds = Math.max(0L, (System.currentTimeMillis() - SurvivalUtilsClient.sessionStartMillis) / 1000L);
             out.add(info("Session • " + formatSeconds(seconds)));
         }
@@ -180,7 +183,7 @@ public final class SurvivalHud {
         var cfg = SurvivalUtilsClient.CONFIG;
         var player = client.player;
 
-        if (cfg.isEnabled(Feature.DURABILITY_WARNINGS)) {
+        if (cfg.showHud(Feature.DURABILITY_WARNINGS)) {
             ItemStack weakest = weakestDamageable(player);
             if (!weakest.isEmpty()) {
                 int p = durabilityPercent(weakest);
@@ -188,42 +191,42 @@ public final class SurvivalHud {
             }
         }
 
-        if (cfg.isEnabled(Feature.TOTEM_ALERT) && countItem(player, Items.TOTEM_OF_UNDYING) == 0) {
+        if (cfg.showHud(Feature.TOTEM_ALERT) && countItem(player, Items.TOTEM_OF_UNDYING) == 0) {
             out.add(warn("⚠ No Totem"));
         }
 
         int free = freeSlots(player);
-        if (cfg.isEnabled(Feature.INVENTORY_SPACE)) out.add(info("Inventory • " + free + " free slots"));
-        if (cfg.isEnabled(Feature.INVENTORY_FULL_ALERT) && free == 0) out.add(warn("⚠ Inventory full"));
+        if (cfg.showHud(Feature.INVENTORY_SPACE)) out.add(info("Inventory • " + free + " free slots"));
+        if (cfg.showHud(Feature.INVENTORY_FULL_ALERT) && free == 0) out.add(warn("⚠ Inventory full"));
 
-        if (cfg.isEnabled(Feature.HOTBAR_COUNTS)) {
+        if (cfg.showHud(Feature.HOTBAR_COUNTS)) {
             int nonEmpty = 0;
             for (int i = 0; i < 9; i++) if (!player.getInventory().getItem(i).isEmpty()) nonEmpty++;
             out.add(info("Hotbar • " + nonEmpty + "/9 occupied"));
         }
 
-        if (cfg.isEnabled(Feature.FOOD_COUNT)) {
+        if (cfg.showHud(Feature.FOOD_COUNT)) {
             int count = countFood(player);
             out.add(info("Food items • " + count));
         }
 
-        if (cfg.isEnabled(Feature.TORCH_COUNT)) out.add(info("Torches • " + countItem(player, Items.TORCH)));
-        if (cfg.isEnabled(Feature.ARROW_COUNT)) out.add(info("Arrows • " + countArrows(player)));
-        if (cfg.isEnabled(Feature.ROCKET_COUNT)) out.add(info("Rockets • " + countItem(player, Items.FIREWORK_ROCKET)));
-        if (cfg.isEnabled(Feature.PEARL_COUNT)) out.add(info("Pearls • " + countItem(player, Items.ENDER_PEARL)));
+        if (cfg.showHud(Feature.TORCH_COUNT)) out.add(info("Torches • " + countItem(player, Items.TORCH)));
+        if (cfg.showHud(Feature.ARROW_COUNT)) out.add(info("Arrows • " + countArrows(player)));
+        if (cfg.showHud(Feature.ROCKET_COUNT)) out.add(info("Rockets • " + countItem(player, Items.FIREWORK_ROCKET)));
+        if (cfg.showHud(Feature.PEARL_COUNT)) out.add(info("Pearls • " + countItem(player, Items.ENDER_PEARL)));
 
-        if (cfg.isEnabled(Feature.BED_ALERT) && isNight(client) && !hasBed(player)) out.add(warn("⚠ Night approaching • no bed carried"));
-        if (cfg.isEnabled(Feature.WATER_BUCKET_ALERT) && countItem(player, Items.WATER_BUCKET) == 0) out.add(new Line("Water bucket • none", YELLOW));
+        if (cfg.showHud(Feature.BED_ALERT) && isNight(client) && !hasBed(player)) out.add(warn("⚠ Night approaching • no bed carried"));
+        if (cfg.showHud(Feature.WATER_BUCKET_ALERT) && countItem(player, Items.WATER_BUCKET) == 0) out.add(new Line("Water bucket • none", YELLOW));
 
-        if (cfg.isEnabled(Feature.AUTO_REFILL_HOTBAR)) {
+        if (cfg.showHud(Feature.AUTO_REFILL_HOTBAR)) {
             out.add(new Line("Auto refill • armed", GREEN));
         }
 
-        if (cfg.isEnabled(Feature.INVENTORY_ORGANIZER)) {
+        if (cfg.showHud(Feature.INVENTORY_ORGANIZER)) {
             out.add(new Line("Organizer • enabled", GREEN));
         }
 
-        if (cfg.isEnabled(Feature.MENDING_REMINDER)) {
+        if (cfg.showHud(Feature.MENDING_REMINDER)) {
             ItemStack weak = weakestDamageable(player);
             if (!weak.isEmpty() && durabilityPercent(weak) < 60 && player.experienceLevel > 0) {
                 out.add(new Line("Mending check • damaged gear + XP available", AQUA));
@@ -236,48 +239,48 @@ public final class SurvivalHud {
         var player = client.player;
         var level = client.level;
 
-        if (cfg.isEnabled(Feature.WAYPOINTS)) {
+        if (cfg.showHud(Feature.WAYPOINTS)) {
             out.add(new Line("Waypoints • local HUD enabled", AQUA));
         }
 
-        if (cfg.isEnabled(Feature.DEATH_WAYPOINT) && SurvivalUtilsClient.lastDeath != null) {
+        if (cfg.showHud(Feature.DEATH_WAYPOINT) && SurvivalUtilsClient.lastDeath != null) {
             double d = horizontalDistance(player.getX(), player.getZ(), SurvivalUtilsClient.lastDeath.getX(), SurvivalUtilsClient.lastDeath.getZ());
             out.add(new Line("Last death • " + coord(SurvivalUtilsClient.lastDeath) + " • " + Math.round(d) + "m", AQUA));
         }
 
-        if (cfg.isEnabled(Feature.PORTAL_MEMORY) && SurvivalUtilsClient.lastPortal != null) {
+        if (cfg.showHud(Feature.PORTAL_MEMORY) && SurvivalUtilsClient.lastPortal != null) {
             out.add(new Line("Last portal • " + coord(SurvivalUtilsClient.lastPortal), AQUA));
         }
 
-        if (cfg.isEnabled(Feature.JOURNEY_STATS)) {
+        if (cfg.showHud(Feature.JOURNEY_STATS)) {
             out.add(info("Journey • " + Math.round(SurvivalUtilsClient.journeyDistance) + " blocks"));
         }
 
-        if (cfg.isEnabled(Feature.ALTITUDE_HINT)) {
+        if (cfg.showHud(Feature.ALTITUDE_HINT)) {
             out.add(info("Altitude • Y " + player.blockPosition().getY() + altitudeHint(client)));
         }
 
-        if (cfg.isEnabled(Feature.NETHER_COORD_CONVERTER)) {
+        if (cfg.showHud(Feature.NETHER_COORD_CONVERTER)) {
             boolean nether = level.dimension().identifier().getPath().equals("the_nether");
             double x = nether ? player.getX() * 8.0 : player.getX() / 8.0;
             double z = nether ? player.getZ() * 8.0 : player.getZ() / 8.0;
             out.add(info((nether ? "Overworld" : "Nether") + " link • " + Math.round(x) + ", " + Math.round(z)));
         }
 
-        if (cfg.isEnabled(Feature.COMPASS_HOME)) {
+        if (cfg.showHud(Feature.COMPASS_HOME)) {
             out.add(info("Origin • " + directionTo(player.getX(), player.getZ(), 0, 0) + " • " + Math.round(horizontalDistance(player.getX(), player.getZ(), 0, 0)) + "m"));
         }
 
-        if (cfg.isEnabled(Feature.DISTANCE_FROM_SPAWN)) {
+        if (cfg.showHud(Feature.DISTANCE_FROM_SPAWN)) {
             out.add(info("Distance from origin • " + Math.round(horizontalDistance(player.getX(), player.getZ(), 0, 0)) + "m"));
         }
 
         int light = level.getMaxLocalRawBrightness(player.blockPosition());
-        if (cfg.isEnabled(Feature.LIGHT_WARNING) && light <= 3) out.add(new Line("Low light • " + light, YELLOW));
-        if (cfg.isEnabled(Feature.SAFE_SLEEP_ALERT) && isNight(client)) out.add(new Line("Sleep window • open", AQUA));
-        if (cfg.isEnabled(Feature.WORLD_DAY_COUNTER)) out.add(info("World day • " + (level.getDayTime() / 24000L + 1L)));
+        if (cfg.showHud(Feature.LIGHT_WARNING) && light <= 3) out.add(new Line("Low light • " + light, YELLOW));
+        if (cfg.showHud(Feature.SAFE_SLEEP_ALERT) && isNight(client)) out.add(new Line("Sleep window • open", AQUA));
+        if (cfg.showHud(Feature.WORLD_DAY_COUNTER)) out.add(info("World day • " + (level.getDayTime() / 24000L + 1L)));
 
-        if (cfg.isEnabled(Feature.CHUNK_BORDER_DISTANCE)) {
+        if (cfg.showHud(Feature.CHUNK_BORDER_DISTANCE)) {
             int lx = Math.floorMod(player.blockPosition().getX(), 16);
             int lz = Math.floorMod(player.blockPosition().getZ(), 16);
             int edge = Math.min(Math.min(lx, 15 - lx), Math.min(lz, 15 - lz));
@@ -293,7 +296,7 @@ public final class SurvivalHud {
         BlockState target = null;
         if (client.hitResult instanceof BlockHitResult hit) target = level.getBlockState(hit.getBlockPos());
 
-        if (cfg.isEnabled(Feature.TOOL_RECOMMENDATION) && target != null) {
+        if (cfg.showHud(Feature.TOOL_RECOMMENDATION) && target != null) {
             String tool = target.is(BlockTags.MINEABLE_WITH_PICKAXE) ? "Pickaxe"
                 : target.is(BlockTags.MINEABLE_WITH_AXE) ? "Axe"
                 : target.is(BlockTags.MINEABLE_WITH_SHOVEL) ? "Shovel"
@@ -301,46 +304,46 @@ public final class SurvivalHud {
             out.add(info("Best tool • " + tool));
         }
 
-        if (cfg.isEnabled(Feature.PICKAXE_DURABILITY)) {
+        if (cfg.showHud(Feature.PICKAXE_DURABILITY)) {
             ItemStack pick = findFirst(player, s -> s.is(ItemTags.PICKAXES));
             if (!pick.isEmpty()) out.add(info("Pickaxe • " + durabilityPercent(pick) + "%"));
         }
 
-        if (cfg.isEnabled(Feature.ORE_SESSION_TRACKER)) {
+        if (cfg.showHud(Feature.ORE_SESSION_TRACKER)) {
             out.add(info("Ore inventory • " + oreTotal(player) + " tracked materials"));
         }
 
-        if (cfg.isEnabled(Feature.DIAMOND_Y_HINT) && level.dimension().identifier().getPath().equals("overworld")) {
+        if (cfg.showHud(Feature.DIAMOND_Y_HINT) && level.dimension().identifier().getPath().equals("overworld")) {
             int y = player.blockPosition().getY();
             out.add(info("Diamond depth • Y " + y + " • target ≈ -59"));
         }
 
-        if (cfg.isEnabled(Feature.ANCIENT_DEBRIS_Y_HINT) && level.dimension().identifier().getPath().equals("the_nether")) {
+        if (cfg.showHud(Feature.ANCIENT_DEBRIS_Y_HINT) && level.dimension().identifier().getPath().equals("the_nether")) {
             int y = player.blockPosition().getY();
             out.add(info("Debris depth • Y " + y + " • common ≈ 15"));
         }
 
-        if (cfg.isEnabled(Feature.MINING_SESSION_TIMER) && player.blockPosition().getY() < 40) {
+        if (cfg.showHud(Feature.MINING_SESSION_TIMER) && player.blockPosition().getY() < 40) {
             long seconds = (System.currentTimeMillis() - SurvivalUtilsClient.sessionStartMillis) / 1000L;
             out.add(info("Underground session • " + formatSeconds(seconds)));
         }
 
-        if (cfg.isEnabled(Feature.TORCH_INTERVAL) && level.getMaxLocalRawBrightness(player.blockPosition()) <= 5) {
+        if (cfg.showHud(Feature.TORCH_INTERVAL) && level.getMaxLocalRawBrightness(player.blockPosition()) <= 5) {
             out.add(new Line("Torch hint • light this area", YELLOW));
         }
 
-        if (cfg.isEnabled(Feature.INVENTORY_ORE_SUMMARY)) {
+        if (cfg.showHud(Feature.INVENTORY_ORE_SUMMARY)) {
             out.add(info("Ores • D:" + countItem(player, Items.DIAMOND)
                 + " Fe:" + countItem(player, Items.RAW_IRON)
                 + " Au:" + countItem(player, Items.RAW_GOLD)
                 + " Cu:" + countItem(player, Items.RAW_COPPER)));
         }
 
-        if (cfg.isEnabled(Feature.FORTUNE_REMINDER) && target != null && isValuableOre(target)) {
+        if (cfg.showHud(Feature.FORTUNE_REMINDER) && target != null && isValuableOre(target)) {
             out.add(new Line("Fortune check • valuable ore targeted", AQUA));
         }
 
-        if (cfg.isEnabled(Feature.SILK_TOUCH_REMINDER) && target != null && target.is(BlockTags.NEEDS_DIAMOND_TOOL)) {
+        if (cfg.showHud(Feature.SILK_TOUCH_REMINDER) && target != null && target.is(BlockTags.NEEDS_DIAMOND_TOOL)) {
             out.add(new Line("Silk Touch check • special block targeted", AQUA));
         }
     }
@@ -350,36 +353,36 @@ public final class SurvivalHud {
         var player = client.player;
 
         int mature = -1;
-        if (cfg.isEnabled(Feature.CROP_READY_COUNT) || cfg.isEnabled(Feature.HARVEST_REMINDER)) {
+        if (cfg.showHud(Feature.CROP_READY_COUNT) || cfg.showHud(Feature.HARVEST_REMINDER)) {
             mature = matureCrops(client, 5);
         }
 
-        if (cfg.isEnabled(Feature.CROP_READY_COUNT)) out.add(info("Mature crops nearby • " + mature));
-        if (cfg.isEnabled(Feature.BONE_MEAL_COUNT)) out.add(info("Bone meal • " + countItem(player, Items.BONE_MEAL)));
-        if (cfg.isEnabled(Feature.SEED_COUNT)) {
+        if (cfg.showHud(Feature.CROP_READY_COUNT)) out.add(info("Mature crops nearby • " + mature));
+        if (cfg.showHud(Feature.BONE_MEAL_COUNT)) out.add(info("Bone meal • " + countItem(player, Items.BONE_MEAL)));
+        if (cfg.showHud(Feature.SEED_COUNT)) {
             int seeds = countItem(player, Items.WHEAT_SEEDS) + countItem(player, Items.BEETROOT_SEEDS)
                 + countItem(player, Items.MELON_SEEDS) + countItem(player, Items.PUMPKIN_SEEDS);
             out.add(info("Seeds • " + seeds));
         }
 
-        if (cfg.isEnabled(Feature.HOE_DURABILITY)) {
+        if (cfg.showHud(Feature.HOE_DURABILITY)) {
             ItemStack hoe = findFirst(player, s -> s.getItem() instanceof HoeItem);
             if (!hoe.isEmpty()) out.add(info("Hoe • " + durabilityPercent(hoe) + "%"));
         }
 
-        if (cfg.isEnabled(Feature.HARVEST_REMINDER) && mature >= 8) out.add(new Line("Harvest ready • " + mature + " crops", GREEN));
+        if (cfg.showHud(Feature.HARVEST_REMINDER) && mature >= 8) out.add(new Line("Harvest ready • " + mature + " crops", GREEN));
 
-        if (cfg.isEnabled(Feature.COMPOSTER_REMINDER)) {
+        if (cfg.showHud(Feature.COMPOSTER_REMINDER)) {
             int compost = countItem(player, Items.WHEAT_SEEDS) + countItem(player, Items.BEETROOT_SEEDS)
                 + countItem(player, Items.KELP) + countItem(player, Items.DRIED_KELP);
             out.add(info("Easy compostables • " + compost));
         }
 
-        if (cfg.isEnabled(Feature.FARM_LIGHT_WARNING) && client.level.getMaxLocalRawBrightness(player.blockPosition()) < 8) {
+        if (cfg.showHud(Feature.FARM_LIGHT_WARNING) && client.level.getMaxLocalRawBrightness(player.blockPosition()) < 8) {
             out.add(new Line("Farm light • low", YELLOW));
         }
 
-        if (cfg.isEnabled(Feature.ANIMAL_FOOD_HELPER)) {
+        if (cfg.showHud(Feature.ANIMAL_FOOD_HELPER)) {
             out.add(info("Breeding food • wheat " + countItem(player, Items.WHEAT)
                 + " • carrots " + countItem(player, Items.CARROT)));
         }
@@ -390,24 +393,24 @@ public final class SurvivalHud {
         var player = client.player;
         var box = player.getBoundingBox().inflate(16.0);
 
-        if (cfg.isEnabled(Feature.VILLAGER_HELPER)) {
+        if (cfg.showHud(Feature.VILLAGER_HELPER)) {
             int villagers = countEntities(client, EntityType.VILLAGER, 16.0);
             out.add(info("Villagers within 16m • " + villagers));
         }
 
-        if (cfg.isEnabled(Feature.EMERALD_COUNT)) out.add(info("Emeralds • " + countItem(player, Items.EMERALD)));
+        if (cfg.showHud(Feature.EMERALD_COUNT)) out.add(info("Emeralds • " + countItem(player, Items.EMERALD)));
 
-        if (cfg.isEnabled(Feature.TRADE_ITEM_CHECK)) {
+        if (cfg.showHud(Feature.TRADE_ITEM_CHECK)) {
             int trade = countItem(player, Items.PAPER) + countItem(player, Items.STICK)
                 + countItem(player, Items.WHEAT) + countItem(player, Items.COAL);
             out.add(info("Common trade items • " + trade));
         }
 
-        if (cfg.isEnabled(Feature.RAID_WARNING) && player.hasEffect(net.minecraft.world.effect.MobEffects.BAD_OMEN)) {
+        if (cfg.showHud(Feature.RAID_WARNING) && player.hasEffect(net.minecraft.world.effect.MobEffects.BAD_OMEN)) {
             out.add(warn("⚠ Raid risk • Bad Omen active"));
         }
 
-        if (cfg.isEnabled(Feature.HERO_TIMER)) {
+        if (cfg.showHud(Feature.HERO_TIMER)) {
             out.add(info("Hero effect • " + (player.hasEffect(net.minecraft.world.effect.MobEffects.HERO_OF_THE_VILLAGE) ? "active" : "inactive")));
         }
     }
@@ -416,12 +419,12 @@ public final class SurvivalHud {
         var cfg = SurvivalUtilsClient.CONFIG;
         var player = client.player;
 
-        if (cfg.isEnabled(Feature.BLOCK_COUNT)) {
+        if (cfg.showHud(Feature.BLOCK_COUNT)) {
             ItemStack held = player.getMainHandItem();
             out.add(info("Selected stack total • " + (held.isEmpty() ? 0 : countItem(player, held.getItem()))));
         }
 
-        if (cfg.isEnabled(Feature.PALETTE_COUNTS)) {
+        if (cfg.showHud(Feature.PALETTE_COUNTS)) {
             int blocks = 0;
             for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
                 ItemStack stack = player.getInventory().getItem(i);
@@ -430,14 +433,14 @@ public final class SurvivalHud {
             out.add(info("Building blocks • " + blocks));
         }
 
-        if (cfg.isEnabled(Feature.SCAFFOLD_COUNT)) out.add(info("Scaffolding • " + countItem(player, Items.SCAFFOLDING)));
+        if (cfg.showHud(Feature.SCAFFOLD_COUNT)) out.add(info("Scaffolding • " + countItem(player, Items.SCAFFOLDING)));
 
-        if (cfg.isEnabled(Feature.BUILD_HEIGHT)) {
+        if (cfg.showHud(Feature.BUILD_HEIGHT)) {
             int y = player.blockPosition().getY();
             out.add(info("Build Y • " + y));
         }
 
-        if (cfg.isEnabled(Feature.BUILD_LIGHT)) {
+        if (cfg.showHud(Feature.BUILD_LIGHT)) {
             out.add(info("Local light • " + client.level.getMaxLocalRawBrightness(player.blockPosition())));
         }
     }
@@ -446,62 +449,62 @@ public final class SurvivalHud {
         var cfg = SurvivalUtilsClient.CONFIG;
         var player = client.player;
 
-        if (cfg.isEnabled(Feature.LOW_HEALTH_ALERT) && player.getHealth() <= 6.0F) {
+        if (cfg.showHud(Feature.LOW_HEALTH_ALERT) && player.getHealth() <= 6.0F) {
             out.add(warn("⚠ LOW HEALTH • " + String.format(Locale.ROOT, "%.1f", player.getHealth())));
         }
 
-        if (cfg.isEnabled(Feature.LOW_HUNGER_ALERT) && player.getFoodData().getFoodLevel() <= 5) {
+        if (cfg.showHud(Feature.LOW_HUNGER_ALERT) && player.getFoodData().getFoodLevel() <= 5) {
             out.add(warn("⚠ LOW HUNGER • " + player.getFoodData().getFoodLevel()));
         }
 
-        if (cfg.isEnabled(Feature.SHIELD_DURABILITY)) {
+        if (cfg.showHud(Feature.SHIELD_DURABILITY)) {
             addSpecificDurability(out, player, Items.SHIELD, "Shield");
         }
 
-        if (cfg.isEnabled(Feature.BOW_DURABILITY)) {
+        if (cfg.showHud(Feature.BOW_DURABILITY)) {
             ItemStack bow = findFirst(player, s -> s.is(Items.BOW) || s.is(Items.CROSSBOW));
             if (!bow.isEmpty()) out.add(info("Bow • " + durabilityPercent(bow) + "%"));
         }
 
-        if (cfg.isEnabled(Feature.ELYTRA_DURABILITY)) {
+        if (cfg.showHud(Feature.ELYTRA_DURABILITY)) {
             addSpecificDurability(out, player, Items.ELYTRA, "Elytra");
         }
 
         var box = player.getBoundingBox().inflate(16.0);
-        if (cfg.isEnabled(Feature.HOSTILES_NEARBY)) {
+        if (cfg.showHud(Feature.HOSTILES_NEARBY)) {
             int hostiles = client.level.getEntitiesOfClass(Monster.class, box).size();
             out.add(new Line("Hostiles within 16m • " + hostiles, hostiles > 0 ? YELLOW : WHITE));
         }
 
-        if (cfg.isEnabled(Feature.CREEPER_ALERT)) {
+        if (cfg.showHud(Feature.CREEPER_ALERT)) {
             double nearest = client.level.getEntitiesOfClass(Creeper.class, player.getBoundingBox().inflate(10.0))
                 .stream().mapToDouble(player::distanceTo).min().orElse(-1.0);
             if (nearest >= 0) out.add(warn("⚠ Creeper • " + Math.round(nearest) + "m"));
         }
 
-        if (cfg.isEnabled(Feature.SKELETON_ALERT)) {
+        if (cfg.showHud(Feature.SKELETON_ALERT)) {
             int skeletons = countEntities(client, EntityType.SKELETON, 12.0);
             if (skeletons > 0) out.add(new Line("Skeletons nearby • " + skeletons, YELLOW));
         }
 
-        if (cfg.isEnabled(Feature.FIRE_ALERT) && player.isOnFire()) out.add(warn("⚠ ON FIRE"));
-        if (cfg.isEnabled(Feature.DROWNING_ALERT) && player.getAirSupply() < 80) out.add(warn("⚠ AIR LOW • " + player.getAirSupply()));
-        if (cfg.isEnabled(Feature.FREEZE_ALERT) && player.getTicksFrozen() > 60) out.add(warn("⚠ FREEZING"));
-        if (cfg.isEnabled(Feature.FALL_ALERT) && player.fallDistance > 6.0F) out.add(warn("⚠ FALL • " + Math.round(player.fallDistance) + " blocks"));
+        if (cfg.showHud(Feature.FIRE_ALERT) && player.isOnFire()) out.add(warn("⚠ ON FIRE"));
+        if (cfg.showHud(Feature.DROWNING_ALERT) && player.getAirSupply() < 80) out.add(warn("⚠ AIR LOW • " + player.getAirSupply()));
+        if (cfg.showHud(Feature.FREEZE_ALERT) && player.getTicksFrozen() > 60) out.add(warn("⚠ FREEZING"));
+        if (cfg.showHud(Feature.FALL_ALERT) && player.fallDistance > 6.0F) out.add(warn("⚠ FALL • " + Math.round(player.fallDistance) + " blocks"));
     }
 
     private static void addMiscLines(List<Line> out, Minecraft client) {
         var cfg = SurvivalUtilsClient.CONFIG;
         var player = client.player;
 
-        if (cfg.isEnabled(Feature.MEMORY_USAGE)) {
+        if (cfg.showHud(Feature.MEMORY_USAGE)) {
             Runtime rt = Runtime.getRuntime();
             long used = (rt.totalMemory() - rt.freeMemory()) / 1024L / 1024L;
             long max = rt.maxMemory() / 1024L / 1024L;
             out.add(info("Memory • " + used + "/" + max + " MB"));
         }
 
-        if (cfg.isEnabled(Feature.SMART_DASHBOARD)) {
+        if (cfg.showHud(Feature.SMART_DASHBOARD)) {
             int warnings = 0;
             if (player.getHealth() <= 6.0F) warnings++;
             if (player.getFoodData().getFoodLevel() <= 5) warnings++;
@@ -511,28 +514,28 @@ public final class SurvivalHud {
                 warnings == 0 ? GREEN : YELLOW));
         }
 
-        if (cfg.isEnabled(Feature.CLOCK_HUD)) {
+        if (cfg.showHud(Feature.CLOCK_HUD)) {
             out.add(info("Clock • tick " + Math.floorMod(client.level.getDayTime(), 24000L)));
         }
 
-        if (cfg.isEnabled(Feature.SPRINT_STATE)) {
+        if (cfg.showHud(Feature.SPRINT_STATE)) {
             out.add(info("Movement • " + (player.isSprinting() ? "Sprinting" : player.isShiftKeyDown() ? "Sneaking" : "Walking")));
         }
 
-        if (cfg.isEnabled(Feature.GAMEMODE_HUD) && client.gameMode != null) {
+        if (cfg.showHud(Feature.GAMEMODE_HUD) && client.gameMode != null) {
             out.add(info("Mode • " + pretty(client.gameMode.getPlayerMode().getName())));
         }
 
-        if (cfg.isEnabled(Feature.DURABILITY_PERCENTAGES)) {
+        if (cfg.showHud(Feature.DURABILITY_PERCENTAGES)) {
             ItemStack held = player.getMainHandItem();
             if (held.isDamageableItem()) out.add(info("Held durability • " + durabilityPercent(held) + "%"));
         }
 
-        if (cfg.isEnabled(Feature.POSITION_COPY_HINT)) {
+        if (cfg.showHud(Feature.POSITION_COPY_HINT)) {
             out.add(new Line("Pos • " + player.blockPosition().getX() + " " + player.blockPosition().getY() + " " + player.blockPosition().getZ(), AQUA));
         }
 
-        if (cfg.isEnabled(Feature.DEBUG_MINI)) {
+        if (cfg.showHud(Feature.DEBUG_MINI)) {
             out.add(info("Mini debug • " + player.chunkPosition().x + "," + player.chunkPosition().z
                 + " • light " + client.level.getMaxLocalRawBrightness(player.blockPosition())));
         }
@@ -744,7 +747,7 @@ public final class SurvivalHud {
     }
 
     private static void renderVisor(GuiGraphics graphics, Minecraft client) {
-        if (!SurvivalUtilsClient.CONFIG.isEnabled(Feature.HELMET_VISOR)) return;
+        if (!SurvivalUtilsClient.CONFIG.showHud(Feature.HELMET_VISOR)) return;
         ItemStack helmet = client.player.getItemBySlot(EquipmentSlot.HEAD);
         if (helmet.isEmpty()) return;
 
@@ -785,7 +788,7 @@ public final class SurvivalHud {
     }
 
     private static void renderVoice(GuiGraphics graphics, Minecraft client) {
-        if (!SurvivalUtilsClient.CONFIG.isEnabled(Feature.VOICE_COMMANDS)) return;
+        if (!SurvivalUtilsClient.CONFIG.showHud(Feature.VOICE_COMMANDS) || !SurvivalUtilsClient.CONFIG.voiceChip()) return;
 
         int panelW = Math.min(195, Math.max(155, graphics.guiWidth() / 5));
         int x2 = graphics.guiWidth() - 6;
