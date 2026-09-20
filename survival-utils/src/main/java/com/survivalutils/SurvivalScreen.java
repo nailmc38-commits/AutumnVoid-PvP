@@ -27,6 +27,12 @@ public final class SurvivalScreen extends Screen {
     private void rebuild() {
         clearWidgets();
 
+        int micWidth = Math.min(210, Math.max(130, this.width / 4));
+        addRenderableWidget(Button.builder(micLabel(), b -> {
+            VoiceCommands.cycleMicrophone();
+            b.setMessage(micLabel());
+        }).bounds(this.width - micWidth - 8, 2, micWidth, 18).build());
+
         int categories = Feature.Category.values().length;
         int tabWidth = Math.max(62, Math.min(92, (this.width - 20) / categories));
         int totalWidth = tabWidth * categories;
@@ -66,6 +72,10 @@ public final class SurvivalScreen extends Screen {
             int by = y + (local / 2) * 24;
             addRenderableWidget(Button.builder(labelFor(feature), b -> {
                 SurvivalUtilsClient.CONFIG.toggle(feature);
+                if (feature == Feature.VOICE_COMMANDS) {
+                    if (SurvivalUtilsClient.CONFIG.isEnabled(feature)) VoiceCommands.start();
+                    else VoiceCommands.stop();
+                }
                 b.setMessage(labelFor(feature));
             }).bounds(bx, by, buttonWidth, 20).build());
         }
@@ -87,6 +97,12 @@ public final class SurvivalScreen extends Screen {
 
         addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose())
             .bounds(this.width / 2 - 35, bottom, 70, 20).build());
+    }
+
+    private static Component micLabel() {
+        String name = VoiceCommands.selectedMicDisplay();
+        if (name.length() > 23) name = name.substring(0, 20) + "...";
+        return Component.literal("§bMIC §8| §f" + name);
     }
 
     private static Component labelFor(Feature feature) {
