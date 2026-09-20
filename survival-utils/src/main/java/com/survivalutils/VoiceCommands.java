@@ -8,8 +8,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.sound.sampled.AudioFormat;
@@ -20,7 +22,6 @@ import javax.sound.sampled.TargetDataLine;
 
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.EntityType;
@@ -42,34 +43,24 @@ public final class VoiceCommands {
     public static volatile String microphone = "System Default";
 
     private static final AtomicBoolean running = new AtomicBoolean(false);
-    private static final List<Mixer.Info> DEVICES = new ArrayList<>();
     private static final Path MIC_PATH = FabricLoader.getInstance().getConfigDir().resolve("survival-utils-mic.txt");
 
     private static Process process;
-    private static Thread readerThread;
-    private static Thread captureThread;
     private static TargetDataLine captureLine;
-    private static int selectedMicIndex = -1;
+    private static String selectedMicName = "System Default";
 
     public static void initialize() {
-        refreshDevices();
-        String saved = "";
         try {
-            if (Files.exists(MIC_PATH)) saved = Files.readString(MIC_PATH).trim();
+            if (Files.exists(MIC_PATH)) {
+                String saved = Files.readString(MIC_PATH).trim();
+                if (!saved.isBlank()) selectedMicName = saved;
+            }
         } catch (IOException ignored) {}
 
-        if (!saved.isBlank()) {
-            for (int i = 0; i < DEVICES.size(); i++) {
-                if (DEVICES.get(i).getName().equals(saved)) {
-                    selectedMicIndex = i;
-                    microphone = saved;
-                    return;
-                }
-            }
+        if (!microphoneNames().contains(selectedMicName)) {
+            selectedMicName = "System Default";
         }
-
-        selectedMicIndex = -1;
-        microphone = "System Default";
+        microphone = selectedMicName;
     }
 
     public static boolean isRunning() {
@@ -77,50 +68,46 @@ public final class VoiceCommands {
     }
 
     public static String selectedMicDisplay() {
-        return microphone == null || microphone.isBlank() ? "System Default" : microphone;
+        return selectedMicName == null || selectedMicName.isBlank() ? "System Default" : selectedMicName;
     }
 
     public static List<String> microphoneNames() {
-        refreshDevices();
-        List<String> names = new ArrayList<>();
+        Set<String> names = new LinkedHashSet<>();
         names.add("System Default");
-        for (Mixer.Info info : DEVICES) names.add(info.getName());
-        return names;
-    }
-
-    public static synchronized String cycleMicrophone() {
-        refreshDevices();
-        int total = DEVICES.size() + 1;
-        int current = selectedMicIndex + 1;
-        current = (current + 1) % Math.max(1, total);
-        selectedMicIndex = current - 1;
-        microphone = selectedMicIndex < 0 ? "System Default" : DEVICES.get(selectedMicIndex).getName();
-        saveMic();
-
-        boolean restart = running.get();
-        if (restart) {
-            stop();
-            start();
-        }
-        return microphone;
-    }
-
-    private static void saveMic() {
-        try {
-            Files.createDirectories(MIC_PATH.getParent());
-            Files.writeString(MIC_PATH, selectedMicIndex < 0 ? "" : DEVICES.get(selectedMicIndex).getName());
-        } catch (IOException ignored) {}
-    }
-
-    private static void refreshDevices() {
-        DEVICES.clear();
         for (Mixer.Info info : AudioSystem.getMixerInfo()) {
             try {
                 Mixer mixer = AudioSystem.getMixer(info);
-                if (mixer.getTargetLineInfo().length > 0) DEVICES.add(info);
+                if (mixer.getTargetLineInfo().length > 0) names.add(info.getName());
             } catch (Throwable ignored) {}
         }
-        if (selectedMicIndex >= DEVICES.size()) selectedMicIndex = -1;
+        return new ArrayList<>(names);
+    }
+
+    public static synchronized boolean selectMicrophone(String name) {
+        try {
+            if (name == null || name.isBlank()) name = "System Default";
+            List<String> available = microphoneNames();
+            if (!available.contains(name)) {
+                status = "NO MIC";
+                lastResponse = "That microphone is no longer available.";
+                return false;
+            }
+
+            if (running.get()) stop();
+
+            selectedMicName = name;
+            microphone = name;
+            Files.createDirectories(MIC_PATH.getParent());
+            Files.writeString(MIC_PATH, "System Default".equals(name) ? "" : name);
+
+            status = "OFF";
+            lastResponse = "Mic set to " + shortName(name) + ". Press F8 to listen.";
+            return true;
+        } catch (Throwable t) {
+            status = "ERROR";
+            lastResponse = "Could not change microphone.";
+            return false;
+        }
     }
 
     public static void toggle() {
@@ -139,12 +126,10 @@ public final class VoiceCommands {
         }
 
         try {
-            refreshDevices();
-
             AudioFormat format = chooseFormat();
-            if (format == null) {
+            if (format == null || captureLine == null) {
                 status = "NO MIC";
-                lastResponse = "Selected microphone could not open.";
+                lastResponse = "Could not open " + shortName(selectedMicDisplay()) + ".";
                 return;
             }
 
@@ -157,18 +142,19 @@ public final class VoiceCommands {
                 "-NoProfile",
                 "-ExecutionPolicy", "Bypass",
                 "-File", script.toAbsolutePath().toString(),
-                Integer.toString(Math.round(format.getSampleRate()))
+                Integer.toString(Math.round(format.getSampleRate())),
+                String.format(Locale.ROOT, "%.2f", SurvivalUtilsClient.CONFIG.voiceConfidence())
             );
             pb.redirectErrorStream(true);
             process = pb.start();
 
             running.set(true);
             status = "STARTING";
-            lastResponse = "Opening " + selectedMicDisplay() + "...";
+            lastResponse = "Opening " + shortName(selectedMicDisplay()) + "...";
 
             Process active = process;
-            readerThread = Thread.ofVirtual().name("survival-utils-voice-reader").start(() -> readLoop(active));
-            captureThread = Thread.ofVirtual().name("survival-utils-voice-capture").start(() -> captureLoop(active, format));
+            Thread.ofVirtual().name("survival-utils-voice-reader").start(() -> readLoop(active));
+            Thread.ofVirtual().name("survival-utils-voice-capture").start(() -> captureLoop(active));
         } catch (Throwable t) {
             closeCapture();
             running.set(false);
@@ -178,15 +164,17 @@ public final class VoiceCommands {
     }
 
     private static AudioFormat chooseFormat() {
+        closeCapture();
+        Mixer selected = resolveSelectedMixer();
+
         float[] rates = new float[]{16000F, 48000F, 44100F};
         for (float rate : rates) {
             AudioFormat format = new AudioFormat(rate, 16, 1, true, false);
             try {
-                Mixer mixer = selectedMicIndex < 0 ? null : AudioSystem.getMixer(DEVICES.get(selectedMicIndex));
                 DataLine.Info lineInfo = new DataLine.Info(TargetDataLine.class, format);
-                TargetDataLine line = mixer == null
+                TargetDataLine line = selected == null
                     ? (TargetDataLine) AudioSystem.getLine(lineInfo)
-                    : (TargetDataLine) mixer.getLine(lineInfo);
+                    : (TargetDataLine) selected.getLine(lineInfo);
                 line.open(format);
                 captureLine = line;
                 return format;
@@ -197,9 +185,26 @@ public final class VoiceCommands {
         return null;
     }
 
-    private static void captureLoop(Process p, AudioFormat format) {
+    private static Mixer resolveSelectedMixer() {
+        if ("System Default".equals(selectedMicName)) return null;
+
+        for (Mixer.Info info : AudioSystem.getMixerInfo()) {
+            if (!info.getName().equals(selectedMicName)) continue;
+            try {
+                Mixer mixer = AudioSystem.getMixer(info);
+                if (mixer.getTargetLineInfo().length > 0) return mixer;
+            } catch (Throwable ignored) {}
+        }
+
+        selectedMicName = "System Default";
+        microphone = selectedMicName;
+        return null;
+    }
+
+    private static void captureLoop(Process p) {
         TargetDataLine line = captureLine;
         if (line == null) return;
+
         try (OutputStream out = p.getOutputStream()) {
             line.start();
             byte[] buffer = new byte[4096];
@@ -221,18 +226,21 @@ public final class VoiceCommands {
         status = "OFF";
         lastResponse = "Voice commands disabled.";
         closeCapture();
+
         if (process != null) {
             try { process.getOutputStream().close(); } catch (Throwable ignored) {}
-            process.destroyForcibly();
+            try { process.destroy(); } catch (Throwable ignored) {}
             process = null;
         }
     }
 
     private static void closeCapture() {
-        if (captureLine != null) {
-            try { captureLine.stop(); } catch (Throwable ignored) {}
-            try { captureLine.close(); } catch (Throwable ignored) {}
-            captureLine = null;
+        TargetDataLine line = captureLine;
+        captureLine = null;
+        if (line != null) {
+            try { line.stop(); } catch (Throwable ignored) {}
+            try { line.flush(); } catch (Throwable ignored) {}
+            try { line.close(); } catch (Throwable ignored) {}
         }
     }
 
@@ -245,7 +253,7 @@ public final class VoiceCommands {
 
                 if ("__READY__".equals(value)) {
                     status = "LISTENING";
-                    lastResponse = "Mic ready. Say 'help'.";
+                    lastResponse = "Listening. Say 'help'.";
                     continue;
                 }
 
@@ -273,6 +281,12 @@ public final class VoiceCommands {
             return;
         }
 
+        Feature required = featureForCommand(command);
+        if (required != null && !SurvivalUtilsClient.CONFIG.voiceEnabled(required)) {
+            respond(client, required.title + " is HUD-only/off. Set it to VOICE or BOTH in F9.");
+            return;
+        }
+
         var player = client.player;
         var level = client.level;
 
@@ -280,9 +294,10 @@ public final class VoiceCommands {
             case "status" -> {
                 int armor = lowestArmor(player);
                 respond(client, String.format(Locale.ROOT,
-                    "HP %.1f/%.1f, hunger %d/20, armor %s, XP %d.",
+                    "HP %.1f/%.1f, hunger %d/20, armor %s, XP %d, hostiles %d.",
                     player.getHealth(), player.getMaxHealth(), player.getFoodData().getFoodLevel(),
-                    armor < 0 ? "none" : armor + "%", player.experienceLevel));
+                    armor < 0 ? "none" : armor + "%", player.experienceLevel,
+                    level.getEntitiesOfClass(Monster.class, player.getBoundingBox().inflate(16.0)).size()));
             }
             case "dimension" -> respond(client, "Dimension: " + pretty(level.dimension().identifier().getPath()) + ".");
             case "coordinates", "position" -> respond(client, String.format(Locale.ROOT,
@@ -303,10 +318,7 @@ public final class VoiceCommands {
                 long seconds = remain / 20L;
                 respond(client, (day ? "Day. " : "Night. ") + (seconds / 60L) + "m " + (seconds % 60L) + "s remaining.");
             }
-            case "inventory" -> {
-                int free = freeSlots(player);
-                respond(client, "Inventory: " + free + " empty slots. Holding " + heldName(player) + ".");
-            }
+            case "inventory" -> respond(client, "Inventory: " + freeSlots(player) + " empty slots. Holding " + heldName(player) + ".");
             case "free slots" -> respond(client, freeSlots(player) + " empty inventory slots.");
             case "danger", "hostiles" -> {
                 var hostiles = level.getEntitiesOfClass(Monster.class, player.getBoundingBox().inflate(16.0));
@@ -314,10 +326,8 @@ public final class VoiceCommands {
                 respond(client, hostiles.isEmpty() ? "No hostiles within 16 blocks."
                     : hostiles.size() + " hostiles nearby. Nearest about " + Math.round(nearest) + " blocks.");
             }
-            case "creepers" -> respond(client,
-                countType(client, EntityType.CREEPER, 16.0) + " creepers within 16 blocks.");
-            case "skeletons" -> respond(client,
-                countType(client, EntityType.SKELETON, 16.0) + " skeletons within 16 blocks.");
+            case "creepers" -> respond(client, countType(client, EntityType.CREEPER, 16.0) + " creepers within 16 blocks.");
+            case "skeletons" -> respond(client, countType(client, EntityType.SKELETON, 16.0) + " skeletons within 16 blocks.");
             case "light" -> respond(client, "Light level " + level.getMaxLocalRawBrightness(player.blockPosition()) + ".");
             case "speed" -> {
                 var v = player.getDeltaMovement();
@@ -337,8 +347,7 @@ public final class VoiceCommands {
             case "held item", "item" -> respond(client, "Holding " + heldName(player) + ".");
             case "target", "target block" -> {
                 if (client.hitResult instanceof BlockHitResult hit) {
-                    var state = level.getBlockState(hit.getBlockPos());
-                    respond(client, "Target: " + state.getBlock().getName().getString() + ".");
+                    respond(client, "Target: " + level.getBlockState(hit.getBlockPos()).getBlock().getName().getString() + ".");
                 } else respond(client, "No block targeted.");
             }
             case "facing", "direction" -> respond(client, "Facing " + pretty(player.getDirection().getName()) + ".");
@@ -405,11 +414,68 @@ public final class VoiceCommands {
                 ItemStack elytra = findItem(player, Items.ELYTRA);
                 respond(client, elytra.isEmpty() ? "No elytra found." : "Elytra durability " + durability(elytra) + "%.");
             }
+            case "journey" -> respond(client, Math.round(SurvivalUtilsClient.journeyDistance) + " blocks traveled this session.");
+            case "altitude" -> respond(client, "Altitude Y " + player.blockPosition().getY() + ".");
+            case "emeralds" -> respond(client, countItem(player, Items.EMERALD) + " emeralds.");
+            case "bone meal" -> respond(client, countItem(player, Items.BONE_MEAL) + " bone meal.");
+            case "seeds" -> respond(client, countItem(player, Items.WHEAT_SEEDS) + " wheat seeds.");
             case "mic", "microphone" -> respond(client, "Microphone: " + selectedMicDisplay() + ".");
             case "help", "commands" -> respond(client,
-                "Commands include status, dimension, position, health, armor, biome, time, danger, speed, weather, FPS, ping, target, tool, items, and more.");
+                "Try status, dimension, position, health, armor, biome, time, inventory, danger, speed, weather, FPS, ping, target, tool, torches, pearls, session, mic, and more.");
             default -> respond(client, "Command not recognized.");
         }
+    }
+
+    private static Feature featureForCommand(String command) {
+        return switch (command) {
+            case "dimension" -> Feature.DIMENSION_HUD;
+            case "coordinates", "position" -> Feature.COORDS_HUD;
+            case "health" -> Feature.LOW_HEALTH_ALERT;
+            case "food", "hunger" -> Feature.FOOD_HUD;
+            case "armor", "helmet" -> Feature.ARMOR_HUD;
+            case "biome" -> Feature.BIOME_HUD;
+            case "time", "day night" -> Feature.DAY_NIGHT_HUD;
+            case "inventory", "free slots" -> Feature.INVENTORY_SPACE;
+            case "danger", "hostiles" -> Feature.HOSTILES_NEARBY;
+            case "creepers" -> Feature.CREEPER_ALERT;
+            case "skeletons" -> Feature.SKELETON_ALERT;
+            case "light" -> Feature.LIGHT_WARNING;
+            case "speed" -> Feature.SPEED_HUD;
+            case "weather" -> Feature.WEATHER_HUD;
+            case "fps" -> Feature.FPS_HUD;
+            case "ping" -> Feature.PING_HUD;
+            case "held item", "item" -> Feature.HELD_ITEM_COUNT;
+            case "target", "target block" -> Feature.TARGET_BLOCK_HUD;
+            case "facing", "direction" -> Feature.DIRECTION_HUD;
+            case "chunk" -> Feature.CHUNK_HUD;
+            case "effects" -> Feature.EFFECT_TIMERS;
+            case "xp", "experience" -> Feature.XP_HUD;
+            case "durability" -> Feature.DURABILITY_PERCENTAGES;
+            case "torches" -> Feature.TORCH_COUNT;
+            case "arrows" -> Feature.ARROW_COUNT;
+            case "rockets" -> Feature.ROCKET_COUNT;
+            case "pearls" -> Feature.PEARL_COUNT;
+            case "bed" -> Feature.BED_ALERT;
+            case "portal" -> Feature.PORTAL_MEMORY;
+            case "session" -> Feature.SESSION_TIMER;
+            case "memory" -> Feature.MEMORY_USAGE;
+            case "gamemode", "game mode" -> Feature.GAMEMODE_HUD;
+            case "air" -> Feature.DROWNING_ALERT;
+            case "fire" -> Feature.FIRE_ALERT;
+            case "freeze", "freezing" -> Feature.FREEZE_ALERT;
+            case "tool", "best tool" -> Feature.TOOL_RECOMMENDATION;
+            case "blocks" -> Feature.PALETTE_COUNTS;
+            case "world day" -> Feature.WORLD_DAY_COUNTER;
+            case "movement" -> Feature.SPRINT_STATE;
+            case "shield" -> Feature.SHIELD_DURABILITY;
+            case "elytra" -> Feature.ELYTRA_DURABILITY;
+            case "journey" -> Feature.JOURNEY_STATS;
+            case "altitude" -> Feature.ALTITUDE_HINT;
+            case "emeralds" -> Feature.EMERALD_COUNT;
+            case "bone meal" -> Feature.BONE_MEAL_COUNT;
+            case "seeds" -> Feature.SEED_COUNT;
+            default -> null;
+        };
     }
 
     private static int countType(Minecraft client, EntityType<?> type, double radius) {
@@ -477,6 +543,11 @@ public final class VoiceCommands {
         }
     }
 
+    private static String shortName(String value) {
+        if (value == null) return "System Default";
+        return value.length() <= 28 ? value : value.substring(0, 25) + "...";
+    }
+
     private static String pretty(String id) {
         String[] parts = id.replace('_', ' ').split(" ");
         StringBuilder out = new StringBuilder();
@@ -492,6 +563,7 @@ public final class VoiceCommands {
         return """
 Add-Type -AssemblyName System.Speech
 $sampleRate = [int]$args[0]
+$confidence = [double]::Parse($args[1], [Globalization.CultureInfo]::InvariantCulture)
 $recognizer = New-Object System.Speech.Recognition.SpeechRecognitionEngine
 $bits = [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen
 $channels = [System.Speech.AudioFormat.AudioChannel]::Mono
@@ -503,8 +575,8 @@ $phrases = @(
   'inventory','free slots','danger','hostiles','creepers','skeletons','light','speed','weather','fps','ping',
   'held item','item','target','target block','facing','direction','chunk','effects','xp','experience','durability',
   'torches','arrows','rockets','pearls','bed','portal','session','memory','gamemode','game mode','air','fire',
-  'freeze','freezing','tool','best tool','blocks','world day','movement','helmet','shield','elytra','mic','microphone',
-  'help','commands'
+  'freeze','freezing','tool','best tool','blocks','world day','movement','helmet','shield','elytra','journey',
+  'altitude','emeralds','bone meal','seeds','mic','microphone','help','commands'
 )
 $choices.Add([string[]]$phrases)
 $builder = New-Object System.Speech.Recognition.GrammarBuilder
@@ -515,8 +587,8 @@ Write-Output '__READY__'
 [Console]::Out.Flush()
 while ($true) {
   try {
-    $result = $recognizer.Recognize([TimeSpan]::FromMilliseconds(900))
-    if ($null -ne $result -and $result.Confidence -ge 0.55) {
+    $result = $recognizer.Recognize([TimeSpan]::FromMilliseconds(850))
+    if ($null -ne $result -and $result.Confidence -ge $confidence) {
       Write-Output ('CMD:' + $result.Text)
       [Console]::Out.Flush()
     }
