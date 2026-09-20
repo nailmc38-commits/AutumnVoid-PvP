@@ -62,7 +62,7 @@ public final class SurvivalHud {
             }
 
             renderVisor(graphics, client);
-            renderAssistant(graphics, client);
+            renderVoice(graphics, client);
         } catch (Throwable t) {
             SurvivalUtilsClient.runtimeFaulted = true;
         }
@@ -771,14 +771,14 @@ public final class SurvivalHud {
             w / 2, 5, WHITE);
     }
 
-    private static void renderAssistant(GuiGraphics graphics, Minecraft client) {
-        if (!SurvivalUtilsClient.CONFIG.isEnabled(Feature.AI_ASSISTANT)) return;
+    private static void renderVoice(GuiGraphics graphics, Minecraft client) {
+        if (!SurvivalUtilsClient.CONFIG.isEnabled(Feature.VOICE_COMMANDS)) return;
 
-        int panelW = Math.min(235, Math.max(180, graphics.guiWidth() / 4));
+        int panelW = Math.min(245, Math.max(185, graphics.guiWidth() / 4));
         int x2 = graphics.guiWidth() - 8;
         int x1 = x2 - panelW;
         int y1 = 20;
-        int y2 = 92;
+        int y2 = 101;
 
         graphics.fill(x1, y1, x2, y2, 0xB5121B22);
         graphics.fill(x1, y1, x2, y1 + 2, 0xFF35E8FF);
@@ -786,25 +786,36 @@ public final class SurvivalHud {
         graphics.fill(x1, y1, x1 + 2, y2, 0xFF35E8FF);
         graphics.fill(x2 - 2, y1, x2, y2, 0xFF35E8FF);
 
-        int statusColor = switch (BionicAssistant.status) {
-            case "ONLINE" -> GREEN;
-            case "THINKING" -> YELLOW;
+        int statusColor = switch (VoiceCommands.status) {
+            case "LISTENING" -> GREEN;
+            case "STARTING" -> YELLOW;
             default -> RED;
         };
 
-        graphics.drawString(client.font, "BIONIC", x1 + 8, y1 + 7, AQUA, true);
-        graphics.drawString(client.font, BionicAssistant.status, x2 - 8 - client.font.width(BionicAssistant.status), y1 + 7, statusColor, true);
+        graphics.drawString(client.font, "VOICE COMMANDS", x1 + 8, y1 + 7, AQUA, true);
+        graphics.drawString(client.font, VoiceCommands.status,
+            x2 - 8 - client.font.width(VoiceCommands.status), y1 + 7, statusColor, true);
 
-        String answer = BionicAssistant.lastAnswer == null ? "Press F8 to talk." : BionicAssistant.lastAnswer;
-        var wrapped = client.font.split(Component.literal(answer), panelW - 16);
-        int y = y1 + 23;
-        int count = Math.min(4, wrapped.size());
+        graphics.drawString(client.font, "HEARD:", x1 + 8, y1 + 23, GRAY, true);
+        String heard = VoiceCommands.lastHeard == null ? "-" : VoiceCommands.lastHeard;
+        graphics.drawString(client.font, shortenVoice(heard, 34), x1 + 48, y1 + 23, WHITE, false);
+
+        String response = VoiceCommands.lastResponse == null ? "Say 'help' for commands." : VoiceCommands.lastResponse;
+        var wrapped = client.font.split(Component.literal(response), panelW - 16);
+        int y = y1 + 38;
+        int count = Math.min(3, wrapped.size());
         for (int i = 0; i < count; i++) {
             graphics.drawString(client.font, wrapped.get(i), x1 + 8, y, WHITE, false);
             y += client.font.lineHeight + 1;
         }
 
-        graphics.drawString(client.font, "F8: ASK", x1 + 8, y2 - 13, GRAY, true);
+        graphics.drawString(client.font, "F8: TOGGLE MIC", x1 + 8, y2 - 13, GRAY, true);
+    }
+
+    private static String shortenVoice(String value, int max) {
+        if (value == null) return "-";
+        if (value.length() <= max) return value;
+        return value.substring(0, Math.max(1, max - 3)) + "...";
     }
 
     private static Line info(String text) { return new Line(text, WHITE); }
