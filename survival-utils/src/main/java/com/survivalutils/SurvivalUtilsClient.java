@@ -31,7 +31,7 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
     public static boolean runtimeFaulted;
 
     private static KeyMapping menuKey;
-    private static KeyMapping assistantKey;
+    private static KeyMapping voiceKey;
 
     @Override
     public void onInitializeClient() {
@@ -47,13 +47,12 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
             InputConstants.KEY_F9,
             category
         ));
-        assistantKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
-            "key.survivalutils.assistant",
+        voiceKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
+            "key.survivalutils.voice",
             InputConstants.Type.KEYSYM,
             InputConstants.KEY_F8,
             category
         ));
-        BionicAssistant.probe();
 
         ClientTickEvents.END_CLIENT_TICK.register(SurvivalUtilsClient::tick);
         HudElementRegistry.attachElementBefore(
@@ -68,9 +67,14 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
             while (menuKey != null && menuKey.consumeClick()) {
                 client.setScreen(new SurvivalScreen(client.screen));
             }
-            while (assistantKey != null && assistantKey.consumeClick()) {
-                if (CONFIG.isEnabled(Feature.AI_ASSISTANT)) {
-                    client.setScreen(new BionicScreen(client.screen));
+            while (voiceKey != null && voiceKey.consumeClick()) {
+                if (CONFIG.isEnabled(Feature.VOICE_COMMANDS)) {
+                    VoiceCommands.toggle();
+                    if (client.player != null) {
+                        client.player.displayClientMessage(Component.literal(
+                            VoiceCommands.isRunning() ? "§bVISOR §8// §aVoice commands ON" : "§bVISOR §8// §cVoice commands OFF"
+                        ), true);
+                    }
                 }
             }
 
@@ -84,8 +88,8 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
             if (worldReadyTicks < 40) return;
 
             tickCounter++;
-            if (CONFIG.isEnabled(Feature.AI_ASSISTANT) && tickCounter % 200 == 0 && !"THINKING".equals(BionicAssistant.status)) {
-                BionicAssistant.probe();
+            if (CONFIG.isEnabled(Feature.VOICE_COMMANDS) && worldReadyTicks == 40 && !VoiceCommands.isRunning()) {
+                VoiceCommands.start();
             }
             var player = client.player;
 
