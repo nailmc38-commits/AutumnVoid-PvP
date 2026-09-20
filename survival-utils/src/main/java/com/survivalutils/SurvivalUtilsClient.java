@@ -31,6 +31,7 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
     public static boolean runtimeFaulted;
 
     private static KeyMapping menuKey;
+    private static KeyMapping assistantKey;
 
     @Override
     public void onInitializeClient() {
@@ -46,6 +47,13 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
             InputConstants.KEY_F9,
             category
         ));
+        assistantKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
+            "key.survivalutils.assistant",
+            InputConstants.Type.KEYSYM,
+            InputConstants.KEY_F8,
+            category
+        ));
+        BionicAssistant.probe();
 
         ClientTickEvents.END_CLIENT_TICK.register(SurvivalUtilsClient::tick);
         HudElementRegistry.attachElementBefore(
@@ -59,6 +67,11 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
         try {
             while (menuKey != null && menuKey.consumeClick()) {
                 client.setScreen(new SurvivalScreen(client.screen));
+            }
+            while (assistantKey != null && assistantKey.consumeClick()) {
+                if (CONFIG.isEnabled(Feature.AI_ASSISTANT)) {
+                    client.setScreen(new BionicScreen(client.screen));
+                }
             }
 
             if (client.player == null || client.level == null) {
