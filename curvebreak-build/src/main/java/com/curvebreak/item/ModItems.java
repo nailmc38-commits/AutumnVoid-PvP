@@ -39,13 +39,13 @@ public final class ModItems {
     public static final Item QUANTUM_CARTRIDGE = rare("quantum_cartridge", Rarity.RARE);
     public static final Item SINGULARITY_CARTRIDGE = rare("singularity_cartridge", Rarity.EPIC);
 
-    public static final Item PORTAL_PROJECTOR_MK1 = projector("portal_projector_mk1", 1, 180);
-    public static final Item PORTAL_PROJECTOR_MK2 = projector("portal_projector_mk2", 2, 260);
-    public static final Item PORTAL_PROJECTOR_MK3 = projector("portal_projector_mk3", 3, 380);
-    public static final Item RIFT_PROJECTOR = projector("rift_projector", 4, 520);
-    public static final Item QUANTUM_PROJECTOR = projector("quantum_projector", 5, 700);
-    public static final Item EDGE_PROJECTOR = projector("edge_projector", 6, 900);
-    public static final Item CURVEBREAK_PROJECTOR = projector("curvebreak_projector", 7, 1200);
+    public static final Item PORTAL_PROJECTOR_MK1 = traveler("portal_projector_mk1", 1, 180);
+    public static final Item PORTAL_PROJECTOR_MK2 = traveler("portal_projector_mk2", 2, 260);
+    public static final Item PORTAL_PROJECTOR_MK3 = traveler("portal_projector_mk3", 3, 380);
+    public static final Item RIFT_PROJECTOR = traveler("rift_projector", 4, 520);
+    public static final Item QUANTUM_PROJECTOR = traveler("quantum_projector", 5, 700);
+    public static final Item EDGE_PROJECTOR = traveler("edge_projector", 6, 900);
+    public static final Item CURVEBREAK_PROJECTOR = traveler("curvebreak_projector", 7, 1200);
 
     public static final Item ENVIRONMENT_MODULE = rare("environment_module", Rarity.UNCOMMON);
     public static final Item PRESSURE_MODULE = rare("pressure_module", Rarity.UNCOMMON);
@@ -61,8 +61,8 @@ public final class ModItems {
         return register(name, Item::new, new Item.Properties().rarity(rarity));
     }
 
-    private static Item projector(String name, int tier, int durability) {
-        return register(name, p -> new PortalProjectorItem(tier, p),
+    private static Item traveler(String name, int tier, int durability) {
+        return register(name, p -> new CurveTravelerItem(tier, p),
                 new Item.Properties().stacksTo(1).durability(durability).rarity(tier >= 6 ? Rarity.EPIC : Rarity.RARE));
     }
 
