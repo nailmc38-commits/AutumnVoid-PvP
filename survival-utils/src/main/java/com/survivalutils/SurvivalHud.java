@@ -45,7 +45,7 @@ public final class SurvivalHud {
             List<Line> lines = collect(client);
             if (lines == null) return;
 
-            int max = 24;
+            int max = 14;
             int shown = Math.min(max, lines.size());
 
             int x = 6;
@@ -54,7 +54,7 @@ public final class SurvivalHud {
                 Line line = lines.get(i);
                 if (line == null || line.text == null) continue;
                 graphics.drawString(client.font, line.text, x, y, line.color, true);
-                y += client.font.lineHeight + 1;
+                y += client.font.lineHeight;
             }
 
             if (lines.size() > max) {
@@ -750,41 +750,54 @@ public final class SurvivalHud {
 
         int w = graphics.guiWidth();
         int h = graphics.guiHeight();
-        int cyan = 0xAA35E8FF;
-        int dim = 0x4435E8FF;
+        int cyan = 0x8835E8FF;
+        int dim = 0x3335E8FF;
 
-        graphics.fill(0, 0, w, 2, cyan);
-        graphics.fill(0, h - 2, w, h, cyan);
-        graphics.fill(0, 0, 2, h, cyan);
-        graphics.fill(w - 2, 0, w, h, cyan);
+        graphics.fill(0, 0, w, 1, cyan);
+        graphics.fill(0, h - 1, w, h, cyan);
+        graphics.fill(0, 0, 1, h, cyan);
+        graphics.fill(w - 1, 0, w, h, cyan);
 
-        graphics.fill(10, 10, 74, 12, dim);
-        graphics.fill(10, 10, 12, 35, dim);
-        graphics.fill(w - 74, 10, w - 10, 12, dim);
-        graphics.fill(w - 12, 10, w - 10, 35, dim);
-        graphics.fill(10, h - 12, 74, h - 10, dim);
-        graphics.fill(w - 74, h - 12, w - 10, h - 10, dim);
+        graphics.fill(8, 8, 44, 10, dim);
+        graphics.fill(8, 8, 10, 28, dim);
+        graphics.fill(w - 44, 8, w - 8, 10, dim);
+        graphics.fill(w - 10, 8, w - 8, 28, dim);
 
-        String helm = helmet.getHoverName().getString();
-        graphics.drawCenteredString(client.font,
-            Component.literal("§bVISOR ONLINE §8// §7" + helm),
-            w / 2, 5, WHITE);
+        int armor = lowestArmorPercent(client.player);
+        var v = client.player.getDeltaMovement();
+        double speed = Math.sqrt(v.x * v.x + v.z * v.z) * 20.0;
+        int hostiles = client.level.getEntitiesOfClass(Monster.class, client.player.getBoundingBox().inflate(16.0)).size();
+
+        String top = String.format(Locale.ROOT,
+            "§bVISOR §8| §fHP %.0f §8| §fH %d §8| §fA %s §8| §fSPD %.1f §8| §fHOST %d",
+            client.player.getHealth(),
+            client.player.getFoodData().getFoodLevel(),
+            armor < 0 ? "--" : armor + "%",
+            speed,
+            hostiles);
+        graphics.drawCenteredString(client.font, Component.literal(top), w / 2, 4, WHITE);
+
+        String bottom = "§8XYZ §f" + client.player.blockPosition().getX() + " "
+            + client.player.blockPosition().getY() + " " + client.player.blockPosition().getZ()
+            + " §8| DIM §f" + pretty(client.level.dimension().identifier().getPath())
+            + " §8| L §f" + client.level.getMaxLocalRawBrightness(client.player.blockPosition());
+        graphics.drawCenteredString(client.font, Component.literal(bottom), w / 2, h - 10, GRAY);
     }
 
     private static void renderVoice(GuiGraphics graphics, Minecraft client) {
         if (!SurvivalUtilsClient.CONFIG.isEnabled(Feature.VOICE_COMMANDS)) return;
 
-        int panelW = Math.min(245, Math.max(185, graphics.guiWidth() / 4));
-        int x2 = graphics.guiWidth() - 8;
+        int panelW = Math.min(195, Math.max(155, graphics.guiWidth() / 5));
+        int x2 = graphics.guiWidth() - 6;
         int x1 = x2 - panelW;
-        int y1 = 20;
-        int y2 = 101;
+        int y1 = 17;
+        int y2 = 62;
 
-        graphics.fill(x1, y1, x2, y2, 0xB5121B22);
-        graphics.fill(x1, y1, x2, y1 + 2, 0xFF35E8FF);
-        graphics.fill(x1, y2 - 2, x2, y2, 0xFF35E8FF);
-        graphics.fill(x1, y1, x1 + 2, y2, 0xFF35E8FF);
-        graphics.fill(x2 - 2, y1, x2, y2, 0xFF35E8FF);
+        graphics.fill(x1, y1, x2, y2, 0x99101820);
+        graphics.fill(x1, y1, x2, y1 + 1, 0xFF35E8FF);
+        graphics.fill(x1, y2 - 1, x2, y2, 0xFF35E8FF);
+        graphics.fill(x1, y1, x1 + 1, y2, 0xFF35E8FF);
+        graphics.fill(x2 - 1, y1, x2, y2, 0xFF35E8FF);
 
         int statusColor = switch (VoiceCommands.status) {
             case "LISTENING" -> GREEN;
@@ -792,30 +805,24 @@ public final class SurvivalHud {
             default -> RED;
         };
 
-        graphics.drawString(client.font, "VOICE COMMANDS", x1 + 8, y1 + 7, AQUA, true);
+        graphics.drawString(client.font, "VOICE", x1 + 5, y1 + 4, AQUA, true);
         graphics.drawString(client.font, VoiceCommands.status,
-            x2 - 8 - client.font.width(VoiceCommands.status), y1 + 7, statusColor, true);
+            x2 - 5 - client.font.width(VoiceCommands.status), y1 + 4, statusColor, true);
 
-        graphics.drawString(client.font, "HEARD:", x1 + 8, y1 + 23, GRAY, true);
         String heard = VoiceCommands.lastHeard == null ? "-" : VoiceCommands.lastHeard;
-        graphics.drawString(client.font, shortenVoice(heard, 34), x1 + 48, y1 + 23, WHITE, false);
+        graphics.drawString(client.font, "§8> §f" + shortenVoice(heard, 20), x1 + 5, y1 + 16, WHITE, false);
 
-        String response = VoiceCommands.lastResponse == null ? "Say 'help' for commands." : VoiceCommands.lastResponse;
-        var wrapped = client.font.split(Component.literal(response), panelW - 16);
-        int y = y1 + 38;
-        int count = Math.min(3, wrapped.size());
-        for (int i = 0; i < count; i++) {
-            graphics.drawString(client.font, wrapped.get(i), x1 + 8, y, WHITE, false);
-            y += client.font.lineHeight + 1;
-        }
+        String response = VoiceCommands.lastResponse == null ? "Say 'help'." : VoiceCommands.lastResponse;
+        graphics.drawString(client.font, shortenVoice(response, 29), x1 + 5, y1 + 28, GRAY, false);
 
-        graphics.drawString(client.font, "F8: TOGGLE MIC", x1 + 8, y2 - 13, GRAY, true);
+        graphics.drawString(client.font, "F8", x2 - 18, y2 - 10, 0xFF5A7A85, false);
     }
 
     private static String shortenVoice(String value, int max) {
         if (value == null) return "-";
-        if (value.length() <= max) return value;
-        return value.substring(0, Math.max(1, max - 3)) + "...";
+        String clean = value.replace('\n', ' ').replace('\r', ' ');
+        if (clean.length() <= max) return clean;
+        return clean.substring(0, Math.max(1, max - 3)) + "...";
     }
 
     private static Line info(String text) { return new Line(text, WHITE); }
