@@ -36,23 +36,32 @@ public final class SurvivalHud {
     private static final int GREEN = 0xFF55FF7A;
 
     public static void render(GuiGraphics graphics, DeltaTracker tickCounter) {
-        Minecraft client = Minecraft.getInstance();
-        if (client.player == null || client.level == null || client.options.hideGui) return;
+        try {
+            Minecraft client = Minecraft.getInstance();
+            if (client == null || client.player == null || client.level == null || client.font == null) return;
+            if (client.options == null || client.options.hideGui) return;
+            if (SurvivalUtilsClient.worldReadyTicks < 40) return;
 
-        List<Line> lines = collect(client);
-        int max = 24;
-        int shown = Math.min(max, lines.size());
+            List<Line> lines = collect(client);
+            if (lines == null) return;
 
-        int x = 6;
-        int y = 6;
-        for (int i = 0; i < shown; i++) {
-            Line line = lines.get(i);
-            graphics.drawString(client.font, line.text, x, y, line.color, true);
-            y += client.font.lineHeight + 1;
-        }
+            int max = 24;
+            int shown = Math.min(max, lines.size());
 
-        if (lines.size() > max) {
-            graphics.drawString(client.font, "+" + (lines.size() - max) + " more enabled", x, y, GRAY, true);
+            int x = 6;
+            int y = 6;
+            for (int i = 0; i < shown; i++) {
+                Line line = lines.get(i);
+                if (line == null || line.text == null) continue;
+                graphics.drawString(client.font, line.text, x, y, line.color, true);
+                y += client.font.lineHeight + 1;
+            }
+
+            if (lines.size() > max) {
+                graphics.drawString(client.font, "+" + (lines.size() - max) + " more enabled", x, y, GRAY, true);
+            }
+        } catch (Throwable t) {
+            SurvivalUtilsClient.runtimeFaulted = true;
         }
     }
 
