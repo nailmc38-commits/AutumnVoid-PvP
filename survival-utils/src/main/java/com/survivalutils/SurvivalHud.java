@@ -8,18 +8,19 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.ItemTags;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Monster;
-import net.minecraft.world.entity.monster.Skeleton;
-import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.BedItem;
 import net.minecraft.world.item.HoeItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.PickaxeItem;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
@@ -75,13 +76,13 @@ public final class SurvivalHud {
 
         if (cfg.isEnabled(Feature.BIOME_HUD)) {
             String biome = level.getBiome(pos).unwrapKey()
-                .map(k -> pretty(k.location().getPath()))
+                .map(k -> pretty(k.identifier().getPath()))
                 .orElse("Unknown");
             out.add(info("Biome • " + biome));
         }
 
         if (cfg.isEnabled(Feature.ARMOR_HUD)) {
-            int lowest = lowestArmorPercent(player.getArmorSlots());
+            int lowest = lowestArmorPercent(player);
             out.add(new Line("Armor • " + (lowest < 0 ? "none" : lowest + "% lowest"), lowest >= 0 && lowest <= 15 ? RED : WHITE));
         }
 
@@ -124,7 +125,7 @@ public final class SurvivalHud {
         }
 
         if (cfg.isEnabled(Feature.MOON_PHASE_HUD)) {
-            out.add(info("Moon phase • " + level.getMoonPhase()));
+            out.add(info("Moon phase • " + Math.floorMod(level.getDayTime() / 24000L, 8L)));
         }
 
         if (cfg.isEnabled(Feature.CHUNK_HUD)) {
@@ -143,7 +144,7 @@ public final class SurvivalHud {
         }
 
         if (cfg.isEnabled(Feature.DIMENSION_HUD)) {
-            out.add(info("Dimension • " + pretty(level.dimension().location().getPath())));
+            out.add(info("Dimension • " + pretty(level.dimension().identifier().getPath())));
         }
 
         if (cfg.isEnabled(Feature.SESSION_TIMER)) {
@@ -245,7 +246,7 @@ public final class SurvivalHud {
         }
 
         if (cfg.isEnabled(Feature.NETHER_COORD_CONVERTER)) {
-            boolean nether = level.dimension().location().getPath().equals("the_nether");
+            boolean nether = level.dimension().identifier().getPath().equals("the_nether");
             double x = nether ? player.getX() * 8.0 : player.getX() / 8.0;
             double z = nether ? player.getZ() * 8.0 : player.getZ() / 8.0;
             out.add(info((nether ? "Overworld" : "Nether") + " link • " + Math.round(x) + ", " + Math.round(z)));
@@ -289,7 +290,7 @@ public final class SurvivalHud {
         }
 
         if (cfg.isEnabled(Feature.PICKAXE_DURABILITY)) {
-            ItemStack pick = findFirst(player, s -> s.getItem() instanceof PickaxeItem);
+            ItemStack pick = findFirst(player, s -> s.is(ItemTags.PICKAXES));
             if (!pick.isEmpty()) out.add(info("Pickaxe • " + durabilityPercent(pick) + "%"));
         }
 
@@ -297,12 +298,12 @@ public final class SurvivalHud {
             out.add(info("Ore inventory • " + oreTotal(player) + " tracked materials"));
         }
 
-        if (cfg.isEnabled(Feature.DIAMOND_Y_HINT) && level.dimension().location().getPath().equals("overworld")) {
+        if (cfg.isEnabled(Feature.DIAMOND_Y_HINT) && level.dimension().identifier().getPath().equals("overworld")) {
             int y = player.blockPosition().getY();
             out.add(info("Diamond depth • Y " + y + " • target ≈ -59"));
         }
 
-        if (cfg.isEnabled(Feature.ANCIENT_DEBRIS_Y_HINT) && level.dimension().location().getPath().equals("the_nether")) {
+        if (cfg.isEnabled(Feature.ANCIENT_DEBRIS_Y_HINT) && level.dimension().identifier().getPath().equals("the_nether")) {
             int y = player.blockPosition().getY();
             out.add(info("Debris depth • Y " + y + " • common ≈ 15"));
         }
@@ -378,7 +379,7 @@ public final class SurvivalHud {
         var box = player.getBoundingBox().inflate(16.0);
 
         if (cfg.isEnabled(Feature.VILLAGER_HELPER)) {
-            int villagers = client.level.getEntitiesOfClass(Villager.class, box).size();
+            int villagers = countEntities(client, EntityType.VILLAGER, 16.0);
             out.add(info("Villagers within 16m • " + villagers));
         }
 
@@ -390,11 +391,8 @@ public final class SurvivalHud {
             out.add(info("Common trade items • " + trade));
         }
 
-        if (cfg.isEnabled(Feature.RAID_WARNING)) {
-            try {
-                if (client.level.getRaidAt(player.blockPosition()) != null) out.add(warn("⚠ Raid active nearby"));
-            } catch (Exception ignored) {
-            }
+        if (cfg.isEnabled(Feature.RAID_WARNING) && player.hasEffect(net.minecraft.world.effect.MobEffects.BAD_OMEN)) {
+            out.add(warn("⚠ Raid risk • Bad Omen active"));
         }
 
         if (cfg.isEnabled(Feature.HERO_TIMER)) {
@@ -470,7 +468,7 @@ public final class SurvivalHud {
         }
 
         if (cfg.isEnabled(Feature.SKELETON_ALERT)) {
-            int skeletons = client.level.getEntitiesOfClass(Skeleton.class, player.getBoundingBox().inflate(12.0)).size();
+            int skeletons = countEntities(client, EntityType.SKELETON, 12.0);
             if (skeletons > 0) out.add(new Line("Skeletons nearby • " + skeletons, YELLOW));
         }
 
@@ -536,10 +534,11 @@ public final class SurvivalHud {
         }
     }
 
-    private static int lowestArmorPercent(Iterable<ItemStack> armor) {
+    private static int lowestArmorPercent(net.minecraft.world.entity.player.Player player) {
         int lowest = 101;
         boolean any = false;
-        for (ItemStack stack : armor) {
+        for (EquipmentSlot slot : new EquipmentSlot[]{EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET}) {
+            ItemStack stack = player.getItemBySlot(slot);
             if (!stack.isEmpty() && stack.isDamageableItem()) {
                 any = true;
                 lowest = Math.min(lowest, durabilityPercent(stack));
@@ -566,7 +565,8 @@ public final class SurvivalHud {
                 }
             }
         }
-        for (ItemStack stack : player.getArmorSlots()) {
+        for (EquipmentSlot slot : new EquipmentSlot[]{EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET}) {
+            ItemStack stack = player.getItemBySlot(slot);
             if (!stack.isEmpty() && stack.isDamageableItem()) {
                 int p = durabilityPercent(stack);
                 if (p < percent) {
@@ -605,7 +605,7 @@ public final class SurvivalHud {
         int size = player.getInventory().getContainerSize();
         for (int i = 0; i < size; i++) {
             ItemStack stack = player.getInventory().getItem(i);
-            if (!stack.isEmpty() && stack.getItem().getFoodProperties(stack, player) != null) total += stack.getCount();
+            if (!stack.isEmpty() && stack.get(DataComponents.FOOD) != null) total += stack.getCount();
         }
         return total;
     }
@@ -650,6 +650,10 @@ public final class SurvivalHud {
             || item == Items.ANCIENT_DEBRIS;
     }
 
+    private static int countEntities(Minecraft client, EntityType<?> type, double radius) {
+        return client.level.getEntities(client.player, client.player.getBoundingBox().inflate(radius), e -> e.getType() == type).size();
+    }
+
     private static int matureCrops(Minecraft client, int radius) {
         int count = 0;
         BlockPos center = client.player.blockPosition();
@@ -666,7 +670,7 @@ public final class SurvivalHud {
 
     private static String altitudeHint(Minecraft client) {
         int y = client.player.blockPosition().getY();
-        String dim = client.level.dimension().location().getPath();
+        String dim = client.level.dimension().identifier().getPath();
         if (dim.equals("overworld") && y <= -45) return " • deep mining";
         if (dim.equals("the_nether") && y >= 8 && y <= 22) return " • debris band";
         if (y >= 150) return " • high altitude";
