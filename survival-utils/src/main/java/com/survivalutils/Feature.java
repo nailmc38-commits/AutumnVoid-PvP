@@ -19,6 +19,8 @@ public enum Feature {
     HELD_ITEM_COUNT(Category.HUD, "Held Item Count", "Shows total count of held item in inventory.", false),
     DIMENSION_HUD(Category.HUD, "Dimension", "Shows current dimension.", false),
     SESSION_TIMER(Category.HUD, "Session Timer", "Shows time in the current world session.", false),
+    HELMET_VISOR(Category.HUD, "Helmet Visor", "Adds a holographic suit-style visor when a helmet is equipped.", true),
+    AI_ASSISTANT(Category.HUD, "Bionic Assistant", "Shows the local Bionic AI panel and enables F8 chat.", true),
 
     DURABILITY_WARNINGS(Category.INVENTORY, "Durability Warnings", "Warns when held or equipped gear is low.", true),
     TOTEM_ALERT(Category.INVENTORY, "Totem Alert", "Warns when no totem is in your inventory.", false),
