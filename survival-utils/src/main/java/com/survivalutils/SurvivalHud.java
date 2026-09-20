@@ -60,6 +60,9 @@ public final class SurvivalHud {
             if (lines.size() > max) {
                 graphics.drawString(client.font, "+" + (lines.size() - max) + " more enabled", x, y, GRAY, true);
             }
+
+            renderVisor(graphics, client);
+            renderAssistant(graphics, client);
         } catch (Throwable t) {
             SurvivalUtilsClient.runtimeFaulted = true;
         }
@@ -738,6 +741,70 @@ public final class SurvivalHud {
             b.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
         }
         return b.toString();
+    }
+
+    private static void renderVisor(GuiGraphics graphics, Minecraft client) {
+        if (!SurvivalUtilsClient.CONFIG.isEnabled(Feature.HELMET_VISOR)) return;
+        ItemStack helmet = client.player.getItemBySlot(EquipmentSlot.HEAD);
+        if (helmet.isEmpty()) return;
+
+        int w = graphics.guiWidth();
+        int h = graphics.guiHeight();
+        int cyan = 0xAA35E8FF;
+        int dim = 0x4435E8FF;
+
+        graphics.fill(0, 0, w, 2, cyan);
+        graphics.fill(0, h - 2, w, h, cyan);
+        graphics.fill(0, 0, 2, h, cyan);
+        graphics.fill(w - 2, 0, w, h, cyan);
+
+        graphics.fill(10, 10, 74, 12, dim);
+        graphics.fill(10, 10, 12, 35, dim);
+        graphics.fill(w - 74, 10, w - 10, 12, dim);
+        graphics.fill(w - 12, 10, w - 10, 35, dim);
+        graphics.fill(10, h - 12, 74, h - 10, dim);
+        graphics.fill(w - 74, h - 12, w - 10, h - 10, dim);
+
+        String helm = helmet.getHoverName().getString();
+        graphics.drawCenteredString(client.font,
+            Component.literal("§bVISOR ONLINE §8// §7" + helm),
+            w / 2, 5, WHITE);
+    }
+
+    private static void renderAssistant(GuiGraphics graphics, Minecraft client) {
+        if (!SurvivalUtilsClient.CONFIG.isEnabled(Feature.AI_ASSISTANT)) return;
+
+        int panelW = Math.min(235, Math.max(180, graphics.guiWidth() / 4));
+        int x2 = graphics.guiWidth() - 8;
+        int x1 = x2 - panelW;
+        int y1 = 20;
+        int y2 = 92;
+
+        graphics.fill(x1, y1, x2, y2, 0xB5121B22);
+        graphics.fill(x1, y1, x2, y1 + 2, 0xFF35E8FF);
+        graphics.fill(x1, y2 - 2, x2, y2, 0xFF35E8FF);
+        graphics.fill(x1, y1, x1 + 2, y2, 0xFF35E8FF);
+        graphics.fill(x2 - 2, y1, x2, y2, 0xFF35E8FF);
+
+        int statusColor = switch (BionicAssistant.status) {
+            case "ONLINE" -> GREEN;
+            case "THINKING" -> YELLOW;
+            default -> RED;
+        };
+
+        graphics.drawString(client.font, "BIONIC", x1 + 8, y1 + 7, AQUA, true);
+        graphics.drawString(client.font, BionicAssistant.status, x2 - 8 - client.font.width(BionicAssistant.status), y1 + 7, statusColor, true);
+
+        String answer = BionicAssistant.lastAnswer == null ? "Press F8 to talk." : BionicAssistant.lastAnswer;
+        var wrapped = client.font.split(Component.literal(answer), panelW - 16);
+        int y = y1 + 23;
+        int count = Math.min(4, wrapped.size());
+        for (int i = 0; i < count; i++) {
+            graphics.drawString(client.font, wrapped.get(i), x1 + 8, y, WHITE, false);
+            y += client.font.lineHeight + 1;
+        }
+
+        graphics.drawString(client.font, "F8: ASK", x1 + 8, y2 - 13, GRAY, true);
     }
 
     private static Line info(String text) { return new Line(text, WHITE); }
