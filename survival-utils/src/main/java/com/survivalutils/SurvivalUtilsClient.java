@@ -89,7 +89,10 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
             if (worldReadyTicks < 40) return;
 
             tickCounter++;
-            if (CONFIG.isEnabled(Feature.VOICE_COMMANDS) && worldReadyTicks == 40 && !VoiceCommands.isRunning()) {
+            if (CONFIG.isEnabled(Feature.VOICE_COMMANDS)
+                && CONFIG.voiceAutoStart()
+                && worldReadyTicks == 40
+                && !VoiceCommands.isRunning()) {
                 VoiceCommands.start();
             }
             var player = client.player;
