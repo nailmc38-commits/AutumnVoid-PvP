@@ -27,6 +27,8 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
     public static BlockPos lastDeath;
     public static BlockPos lastPortal;
     public static int tickCounter;
+    public static int worldReadyTicks;
+    public static boolean runtimeFaulted;
 
     private static KeyMapping menuKey;
 
@@ -54,17 +56,22 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
     }
 
     private static void tick(Minecraft client) {
-        while (menuKey.consumeClick()) {
-            client.setScreen(new SurvivalScreen(client.screen));
-        }
+        try {
+            while (menuKey != null && menuKey.consumeClick()) {
+                client.setScreen(new SurvivalScreen(client.screen));
+            }
 
-        if (client.player == null || client.level == null) {
-            hadPlayer = false;
-            return;
-        }
+            if (client.player == null || client.level == null) {
+                hadPlayer = false;
+                worldReadyTicks = 0;
+                return;
+            }
 
-        tickCounter++;
-        var player = client.player;
+            worldReadyTicks++;
+            if (worldReadyTicks < 40) return;
+
+            tickCounter++;
+            var player = client.player;
 
         if (!hadPlayer) {
             lastX = player.getX();
@@ -99,12 +106,15 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
             }
         }
 
-        if (tickCounter % 40 == 0 && CONFIG.isEnabled(Feature.SMART_DASHBOARD)) {
-            if (player.getHealth() <= 6.0F) {
-                player.displayClientMessage(Component.literal("§cSurvival Utils: Low health"), true);
-            } else if (player.getFoodData().getFoodLevel() <= 5) {
-                player.displayClientMessage(Component.literal("§6Survival Utils: Low hunger"), true);
+            if (tickCounter % 40 == 0 && CONFIG.isEnabled(Feature.SMART_DASHBOARD)) {
+                if (player.getHealth() <= 6.0F) {
+                    player.displayClientMessage(Component.literal("§cSurvival Utils: Low health"), true);
+                } else if (player.getFoodData().getFoodLevel() <= 5) {
+                    player.displayClientMessage(Component.literal("§6Survival Utils: Low hunger"), true);
+                }
             }
+        } catch (Throwable t) {
+            runtimeFaulted = true;
         }
     }
 }
