@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "curvebreak",
+  "version": "${version}",
+  "name": "Curvebreak",
+  "description": "A sci-fi dimension exploration and progression mod with 20 worlds connected by Curve technology.",
+  "authors": ["Neil"],
+  "contact": {},
+  "license": "All Rights Reserved",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.curvebreak.CurvebreakMod"],
+    "client": ["com.curvebreak.client.CurvebreakClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.0",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
