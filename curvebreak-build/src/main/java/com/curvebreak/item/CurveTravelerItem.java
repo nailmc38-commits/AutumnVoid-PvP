@@ -47,7 +47,7 @@ public final class CurveTravelerItem extends Item {
             .orElse(CurveDimensions.ALL.getFirst());
 
         if (destination.requiredTier() > tier) {
-            player.displayClientMessage(
+            serverPlayer.displayClientMessage(
                 Component.literal("Projector tier too low for " + destination.displayName())
                     .withStyle(ChatFormatting.RED),
                 true
@@ -59,9 +59,9 @@ public final class CurveTravelerItem extends Item {
             Registries.DIMENSION,
             Identifier.fromNamespaceAndPath(CurvebreakMod.MOD_ID, destination.id())
         );
-        ServerLevel target = serverPlayer.getServer().getLevel(dimensionKey);
+        ServerLevel target = serverPlayer.level().getServer().getLevel(dimensionKey);
         if (target == null) {
-            player.displayClientMessage(
+            serverPlayer.displayClientMessage(
                 Component.literal("Curve destination unavailable: " + destination.displayName())
                     .withStyle(ChatFormatting.RED),
                 true
@@ -69,7 +69,7 @@ public final class CurveTravelerItem extends Item {
             return InteractionResult.FAIL;
         }
 
-        var spawn = target.getSharedSpawnPos();
+        var spawn = target.getRespawnData().pos();
         boolean moved = serverPlayer.teleportTo(
             target,
             spawn.getX() + 0.5D,
@@ -82,18 +82,18 @@ public final class CurveTravelerItem extends Item {
         );
 
         if (!moved) {
-            player.displayClientMessage(Component.literal("The Curve failed to stabilize.").withStyle(ChatFormatting.RED), true);
+            serverPlayer.displayClientMessage(Component.literal("The Curve failed to stabilize.").withStyle(ChatFormatting.RED), true);
             return InteractionResult.FAIL;
         }
 
-        if (CurvePlayerState.markVisited(player, destination.id())) {
+        if (CurvePlayerState.markVisited(serverPlayer, destination.id())) {
             int reward = 150 * destination.requiredTier();
-            CurvePlayerState.addCredits(player, reward);
-            player.sendSystemMessage(Component.literal("Discovery reward: +" + reward + " Credits")
+            CurvePlayerState.addCredits(serverPlayer, reward);
+            serverPlayer.sendSystemMessage(Component.literal("Discovery reward: +" + reward + " Credits")
                 .withStyle(ChatFormatting.GOLD));
         }
 
-        player.displayClientMessage(
+        serverPlayer.displayClientMessage(
             Component.literal("Arrived: " + destination.displayName() + " • Stability " + destination.stability() + "%")
                 .withStyle(ChatFormatting.AQUA),
             true
