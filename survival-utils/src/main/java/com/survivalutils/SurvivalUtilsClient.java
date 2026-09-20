@@ -36,6 +36,7 @@ public final class SurvivalUtilsClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         CONFIG.load();
+        VoiceCommands.initialize();
         sessionStartMillis = System.currentTimeMillis();
 
         KeyMapping.Category category = KeyMapping.Category.register(
